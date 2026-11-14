@@ -20,7 +20,7 @@ import java.util.concurrent.ConcurrentHashMap
  * The web UI is served from https://appassets.androidplatform.net/assets/www/ so that it keeps a
  * normal https origin. Every network call to an AI provider is executed here, natively, which
  * avoids browser CORS limits entirely. The UI itself is not modified: a shim script patches
- * window.fetch for /api/* and speaks to this bridge.
+ * window.fetch for the api routes and speaks to this bridge.
  */
 class MainActivity : Activity() {
 
