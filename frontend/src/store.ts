@@ -5,7 +5,7 @@ import type {
 } from "./types";
 
 export type SettingsSection =
-  | "general" | "models" | "generation" | "research" | "tools" | "memory" | "privacy" | "about";
+  | "general" | "providers" | "models" | "generation" | "research" | "tools" | "memory" | "privacy" | "about";
 
 export interface Toast {
   id: number;

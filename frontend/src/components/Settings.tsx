@@ -10,6 +10,7 @@ import type { Memory, ModelInfo, Settings as SettingsT } from "../types";
 
 const SECTIONS: { id: SettingsSection; label: string; icon: typeof Cpu }[] = [
   { id: "general", label: "General", icon: Sparkles },
+  { id: "providers", label: "AI providers", icon: Sparkles },
   { id: "models", label: "Models & hardware", icon: Cpu },
   { id: "generation", label: "Generation", icon: SlidersHorizontal },
   { id: "research", label: "Research", icon: Globe },
@@ -97,6 +98,111 @@ function Text({ value, onCommit, placeholder, label, type = "text", width = 260 
 }
 
 type Save = (patch: Partial<SettingsT>) => Promise<void>;
+
+/* --------------------------------------------------------------- providers */
+interface ProviderRow {
+  id: string;
+  label: string;
+  kind: string;
+  auth: string;
+  keyPage: string;
+  recommended: boolean;
+  enabled: boolean;
+  key: string;
+  base: string;
+  needsBase: boolean;
+  models: number;
+}
+
+type ProviderSave = (id: string, patch: Partial<ProviderRow>) => void;
+
+function ProviderRowView({ row, save }: { row: ProviderRow; save: ProviderSave }) {
+  return (
+    <>
+      <Field
+        name={row.label}
+        help={row.keyPage ? `Key from ${row.keyPage}` : row.needsBase ? "Your own server on this network" : undefined}>
+        <Switch checked={row.enabled} label={`Enable ${row.label}`} onChange={(v) => save(row.id, { enabled: v })} />
+      </Field>
+      {row.auth !== "none" && (
+        <Field name="API key">
+          <Text
+            label={`${row.label} API key`}
+            type="password"
+            value={row.key}
+            placeholder={row.key ? "Saved" : "Paste your key"}
+            onCommit={(v) => save(row.id, { key: v })}
+            width={240}
+          />
+        </Field>
+      )}
+      {row.needsBase && (
+        <Field name="Server address" help="For example http://192.168.1.10:1234/v1">
+          <Text
+            label={`${row.label} server address`}
+            value={row.base}
+            placeholder="http://192.168.1.10:1234/v1"
+            onCommit={(v) => save(row.id, { base: v })}
+            width={240}
+          />
+        </Field>
+      )}
+    </>
+  );
+}
+
+function Providers() {
+  const [rows, setRows] = useState<ProviderRow[] | null>(null);
+  const [failed, setFailed] = useState("");
+
+  useEffect(() => {
+    fetch("/api/providers")
+      .then((r) => r.json())
+      .then((d) => setRows(d.providers as ProviderRow[]))
+      .catch(() => setFailed("Could not read the provider list."));
+  }, []);
+
+  const save: ProviderSave = (id, patch) => {
+    setRows((cur) => (cur ? cur.map((r) => (r.id === id ? { ...r, ...patch } : r)) : cur));
+    void fetch("/api/providers", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, ...patch }),
+    });
+  };
+
+  if (failed) return <div className="note warn">{failed}</div>;
+  if (!rows) return <div className="note">Loading providers…</div>;
+
+  const recommended = rows.filter((r) => r.recommended);
+  const rest = rows.filter((r) => !r.recommended);
+  const connected = rows.filter((r) => r.enabled && (r.key || r.auth === "none")).length;
+
+  return (
+    <>
+      <div className="set-group">
+        <h4>Connected services</h4>
+        <div className="note">
+          {connected === 0
+            ? "No service is connected yet. Turn one on below and paste its key — the key is stored only on this phone."
+            : `${connected} service${connected === 1 ? "" : "s"} connected. Answers come from whichever model you pick in the composer.`}
+        </div>
+      </div>
+      <div className="set-group">
+        <h4>Recommended</h4>
+        {recommended.map((r) => (
+          <ProviderRowView key={r.id} row={r} save={save} />
+        ))}
+      </div>
+      <div className="set-group">
+        <h4>All providers</h4>
+        {rest.map((r) => (
+          <ProviderRowView key={r.id} row={r} save={save} />
+        ))}
+      </div>
+    </>
+  );
+}
 
 /* ----------------------------------------------------------------- general */
 function General({ s, save }: { s: SettingsT; save: Save }) {
@@ -759,6 +865,7 @@ export function SettingsDialog() {
           </div>
           <div className="set-content scroll">
             {section === "general" && <General s={settings} save={save} />}
+            {section === "providers" && <Providers />}
             {section === "models" && <Models s={settings} save={save} />}
             {section === "generation" && <Generation s={settings} save={save} />}
             {section === "research" && <Research s={settings} save={save} />}
