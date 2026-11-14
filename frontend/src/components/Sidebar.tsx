@@ -218,7 +218,7 @@ export const Sidebar = forwardRef<HTMLInputElement>(function Sidebar(_, searchRe
   const engine = status?.engine;
   const engineLine1 = switching || engine?.loading
     ? "Loading model…"
-    : engine?.loaded ? `${engine.model_name} ${engine.quantization ?? ""}` : status?.resolved?.model_name ?? "No model installed";
+    : engine?.loaded ? `${engine.model_name} ${engine.quantization ?? ""}` : status?.resolved?.model_name ?? "No provider connected";
   const engineLine2 = switching || engine?.loading
     ? "Reading weights into memory"
     : engine?.loaded

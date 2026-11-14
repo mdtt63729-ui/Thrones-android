@@ -83,7 +83,7 @@ export const Composer = forwardRef<ComposerHandle>(function Composer(_, ref) {
   };
 
   const hint = (() => {
-    if (noModel) return "No model installed yet — open Settings → Models to download one.";
+    if (noModel) return "No AI provider connected yet — open Settings → AI providers and add a key.";
     if (researchBlocked) return "Deep Research is unavailable: web access is switched off in Settings → Privacy.";
     if (mode === "research" && online === false) return "No internet connection detected — Deep Research cannot search right now.";
     return MODES.find((m) => m.id === mode)?.hint ?? "";
