@@ -114,3 +114,140 @@ main, aside, [class*="panel"], [class*="sheet"], [class*="modal"], [class*="over
     border-radius: var(--r-lg);
   }
 }
+
+/* ------------------------------------------------------------------ motion */
+
+:root {
+  --tn-spring: cubic-bezier(.22, 1, .36, 1);
+  --tn-soft: cubic-bezier(.4, 0, .2, 1);
+}
+
+/* App shell fades in once instead of snapping. */
+@keyframes tn-shell-in {
+  from { opacity: 0; transform: scale(.994); }
+  to { opacity: 1; transform: none; }
+}
+.app { animation: tn-shell-in 320ms var(--tn-spring) both; }
+
+/* Sidebar: real slide with a fading backdrop, not a margin jump. */
+@media (max-width: 900px) {
+  .sidebar {
+    transform: translateX(0);
+    transition: transform 340ms var(--tn-spring), box-shadow 260ms var(--tn-soft);
+    will-change: transform;
+  }
+  .sidebar.closed {
+    margin-left: 0;
+    transform: translateX(-104%);
+    box-shadow: none;
+  }
+  .sb-backdrop {
+    animation: tn-fade-in 260ms var(--tn-soft) both;
+  }
+}
+
+/* A new chat or a different conversation slides its content in. */
+@keyframes tn-page-in {
+  from { opacity: 0; transform: translateY(14px) scale(.996); }
+  to { opacity: 1; transform: none; }
+}
+.thread-inner { animation: tn-page-in 300ms var(--tn-spring) both; }
+.welcome { animation: tn-page-in 340ms var(--tn-spring) both; }
+.welcome h1 { animation: tn-page-in 420ms var(--tn-spring) both; }
+.starters > * { animation: tn-page-in 380ms var(--tn-spring) both; }
+.starters > *:nth-child(2) { animation-delay: 40ms; }
+.starters > *:nth-child(3) { animation-delay: 80ms; }
+.starters > *:nth-child(4) { animation-delay: 120ms; }
+
+/* Your message flies in from the composer. */
+@keyframes tn-send {
+  from { opacity: 0; transform: translateY(12px) translateX(14px) scale(.98); }
+  to { opacity: 1; transform: none; }
+}
+.msg.user { animation: tn-send 300ms var(--tn-spring) both; }
+
+/* The answer arrives softly. */
+@keyframes tn-answer {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+.msg.assistant { animation: tn-answer 320ms var(--tn-spring) both; }
+
+/* Thinking: a soft sweep across the label plus a breathing dot. */
+@keyframes tn-sweep {
+  from { background-position: 160% 0; }
+  to { background-position: -160% 0; }
+}
+.waiting {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 12px 4px 10px;
+  border-radius: 999px;
+  background-image: linear-gradient(100deg, transparent 20%, rgba(200, 169, 106, .22) 50%, transparent 80%);
+  background-size: 220% 100%;
+  background-repeat: no-repeat;
+  animation: tn-sweep 1.9s linear infinite;
+}
+
+@keyframes tn-breath {
+  0%, 100% { opacity: .35; transform: scale(.82); }
+  50% { opacity: 1; transform: scale(1); }
+}
+.waiting .cursor {
+  animation: tn-breath 1.3s var(--tn-soft) infinite;
+}
+
+/* The live cursor at the end of a streaming answer. */
+@keyframes tn-caret {
+  0%, 45% { opacity: 1; }
+  55%, 100% { opacity: .15; }
+}
+.msg.assistant > .cursor { animation: tn-caret 1s steps(1, end) infinite; }
+
+/* Running step pulses so you can see work happening. */
+@keyframes tn-working {
+  0%, 100% { opacity: .62; }
+  50% { opacity: 1; }
+}
+.step.running { animation: tn-working 1.7s var(--tn-soft) infinite; }
+.step { transition: opacity 220ms var(--tn-soft), color 220ms var(--tn-soft); }
+
+/* Reasoning text unfolds. */
+@keyframes tn-unfold {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: none; }
+}
+.reasoning, [class*="reasoning"] { animation: tn-unfold 240ms var(--tn-soft) both; }
+
+/* Composer lifts slightly while a reply streams. */
+.composer { transition: box-shadow 260ms var(--tn-soft), border-color 260ms var(--tn-soft), transform 260ms var(--tn-spring); }
+.composer:focus-within { box-shadow: var(--shadow-lg); transform: translateY(-1px); }
+
+/* Lists and menus open smoothly. */
+@keyframes tn-pop {
+  from { opacity: 0; transform: translateY(-6px) scale(.97); }
+  to { opacity: 1; transform: none; }
+}
+.menu, [class*="popover"], [class*="dropdown"] { animation: tn-pop 200ms var(--tn-spring) both; transform-origin: top center; }
+
+/* Toasts rise from the bottom. */
+@keyframes tn-toast {
+  from { opacity: 0; transform: translateY(18px) scale(.98); }
+  to { opacity: 1; transform: none; }
+}
+[class*="toast"] { animation: tn-toast 260ms var(--tn-spring) both; }
+
+/* Settings panels swap with a small fade so sections feel connected. */
+@keyframes tn-section {
+  from { opacity: 0; transform: translateX(8px); }
+  to { opacity: 1; transform: none; }
+}
+.set-content > * { animation: tn-section 240ms var(--tn-soft) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

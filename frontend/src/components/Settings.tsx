@@ -11,10 +11,8 @@ import type { Memory, ModelInfo, Settings as SettingsT } from "../types";
 const SECTIONS: { id: SettingsSection; label: string; icon: typeof Cpu }[] = [
   { id: "general", label: "General", icon: Sparkles },
   { id: "providers", label: "AI providers", icon: Sparkles },
-  { id: "models", label: "Models & hardware", icon: Cpu },
   { id: "generation", label: "Generation", icon: SlidersHorizontal },
   { id: "research", label: "Research", icon: Globe },
-  { id: "tools", label: "Tools", icon: Wrench },
   { id: "memory", label: "Memory", icon: Brain },
   { id: "privacy", label: "Privacy & data", icon: Shield },
   { id: "about", label: "About", icon: Info },
@@ -866,10 +864,8 @@ export function SettingsDialog() {
           <div className="set-content scroll">
             {section === "general" && <General s={settings} save={save} />}
             {section === "providers" && <Providers />}
-            {section === "models" && <Models s={settings} save={save} />}
             {section === "generation" && <Generation s={settings} save={save} />}
             {section === "research" && <Research s={settings} save={save} />}
-            {section === "tools" && <Tools s={settings} save={save} />}
             {section === "memory" && <MemorySection s={settings} save={save} />}
             {section === "privacy" && <Privacy s={settings} save={save} />}
             {section === "about" && <About />}
