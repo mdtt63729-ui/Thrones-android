@@ -1,0 +1,91 @@
+name: Build Thrones Mobile (APK)
+
+on:
+  push:
+    branches: [mobile]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Build the original UI (unchanged)
+        working-directory: frontend
+        run: |
+          npm ci --no-audit --no-fund
+          npx vite build --base ./
+
+      - name: Copy UI into the app
+        run: |
+          mkdir -p android/app/src/main/assets/www
+          cp -r frontend/dist/. android/app/src/main/assets/www/
+          node android/tools/inject.mjs
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: android-actions/setup-android@v3
+
+      - uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: "8.7"
+
+      - name: Build per-architecture release APKs
+        working-directory: android
+        run: gradle assembleRelease --no-daemon --stacktrace
+
+      - name: Sign the APKs
+        run: |
+          set -e
+          BT=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -1)
+          mkdir -p out
+          keytool -genkeypair -v -keystore out/thrones-release.jks -alias thrones \
+            -storepass thrones123 -keypass thrones123 -keyalg RSA -keysize 2048 \
+            -validity 10000 -dname "CN=Thrones, OU=Mobile, O=Thrones, L=Kolkata, C=IN"
+          for f in android/app/build/outputs/apk/release/*.apk; do
+            base=$(basename "$f" .apk)
+            cp "$f" "out/${base}-unsigned.apk"
+            "$BT/zipalign" -f 4 "$f" "out/${base}-aligned.apk"
+            "$BT/apksigner" sign --ks out/thrones-release.jks --ks-pass pass:thrones123 \
+              --key-pass pass:thrones123 --out "out/${base}-signed.apk" "out/${base}-aligned.apk"
+            rm -f "out/${base}-aligned.apk"
+          done
+          ls -lh out
+
+      - name: Package the source code
+        run: |
+          git archive --format=zip --prefix=thrones-mobile-source/ -o out/thrones-mobile-source.zip HEAD
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: thrones-mobile-apks
+          path: out/*
+          retention-days: 90
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: mobile-build-${{ github.run_number }}
+          name: Thrones Mobile build ${{ github.run_number }}
+          body: |
+            Signed and unsigned APKs, one per CPU architecture, plus the source code.
+
+            Signed APKs are signed with the keystore `thrones-release.jks` (also attached).
+            Keystore password: `thrones123`, key alias `thrones`.
+
+            Install the `arm64-v8a` file on almost any phone from the last few years.
+          files: out/*
+          prerelease: true
+          make_latest: false

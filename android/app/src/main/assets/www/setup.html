@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Thrones - AI keys</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 24px 16px 120px;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: #0b0b0c; color: #e9e7e2; line-height: 1.5;
+  }
+  h1 { font-size: 22px; margin: 0 0 6px; letter-spacing: -0.01em; }
+  .sub { color: #9b978f; font-size: 14px; margin: 0 0 22px; }
+  .rec { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: #c8a96a; margin: 26px 0 10px; }
+  .card {
+    border: 1px solid #26251f; border-radius: 14px; padding: 14px;
+    background: #121211; margin-bottom: 10px;
+  }
+  .row { display: flex; align-items: center; gap: 10px; }
+  .name { flex: 1; font-weight: 600; font-size: 15px; }
+  .name small { display: block; font-weight: 400; color: #8d8981; font-size: 12px; }
+  input[type="text"], input[type="password"] {
+    width: 100%; margin-top: 10px; padding: 11px 12px; font-size: 15px;
+    background: #0b0b0c; color: #e9e7e2; border: 1px solid #302e27; border-radius: 10px;
+  }
+  input::placeholder { color: #5f5c56; }
+  input[type="checkbox"] { width: 22px; height: 22px; accent-color: #c8a96a; }
+  .hint { font-size: 12px; color: #7d7a73; margin-top: 6px; }
+  .save {
+    position: fixed; left: 0; right: 0; bottom: 0; padding: 14px 16px 22px;
+    background: linear-gradient(to top, #0b0b0c 70%, rgba(11,11,12,0));
+  }
+  button.go {
+    width: 100%; padding: 15px; font-size: 16px; font-weight: 600; border: 0;
+    border-radius: 12px; background: #c8a96a; color: #14130f;
+  }
+  button.go:active { opacity: 0.85; }
+  .note { font-size: 12px; color: #7d7a73; margin-top: 10px; text-align: center; }
+</style>
+</head>
+<body>
+  <h1>Choose your AI providers</h1>
+  <p class="sub">Add a key for the services you want to use. Keys are saved only on this phone, inside the app's own storage. Nothing is sent anywhere except to the provider you picked.</p>
+
+  <div id="rec" class="rec">Recommended</div>
+  <div id="list"></div>
+
+  <div class="save">
+    <button class="go" id="save">Save and start</button>
+    <div class="note">You can reopen this screen any time: at the chat list, press the phone's back button.</div>
+  </div>
+
+<script>
+(function () {
+  var RECOMMENDED = ["ollama", "gemini", "openrouter", "nvidia"];
+  var ALL = ["openrouter", "gemini", "nvidia", "ollama", "openai", "anthropic", "groq", "mistral",
+             "deepseek", "xai", "together", "fireworks", "sarvam", "cohere", "perplexity", "lmstudio", "custom"];
+  var PROVIDERS = window.THRONES_PROVIDERS || {};
+
+  var cfg = {};
+  try { cfg = JSON.parse(localStorage.getItem("thrones.cfg") || "{}"); } catch (e) { cfg = {}; }
+  if (!cfg.providers) cfg.providers = {};
+
+  function card(id) {
+    var p = PROVIDERS[id] || { label: id, base: "", models: [], keyPage: "" };
+    var e = cfg.providers[id] || {};
+    var el = document.createElement("div");
+    el.className = "card";
+    el.innerHTML =
+      '<div class="row">' +
+        '<div class="name">' + p.label + '<small>' + (p.keyPage ? p.keyPage : "no key needed") + '</small></div>' +
+        '<input type="checkbox" data-id="' + id + '" ' + (e.enabled ? "checked" : "") + ' />' +
+      '</div>' +
+      '<input type="password" data-key="' + id + '" placeholder="Paste API key" value="' + (e.key || "").replace(/"/g, "&quot;") + '" />' +
+      (id === "ollama" || id === "lmstudio" || id === "custom"
+        ? '<input type="text" data-base="' + id + '" placeholder="Server address, e.g. http://192.168.1.10:1234/v1" value="' + (e.base || "") + '" />'
+        : "") +
+      '<input type="text" data-models="' + id + '" placeholder="Models (comma separated, optional)" value="' + ((e.models || []).join(", ")) + '" />' +
+      '<div class="hint">Leave the model list empty to use the built-in suggestions.</div>';
+    return el;
+  }
+
+  var list = document.getElementById("list");
+  RECOMMENDED.forEach(function (id) { list.appendChild(card(id)); });
+
+  var more = document.createElement("div");
+  more.className = "rec";
+  more.textContent = "All other providers";
+  list.appendChild(more);
+  ALL.filter(function (id) { return RECOMMENDED.indexOf(id) < 0; }).forEach(function (id) {
+    list.appendChild(card(id));
+  });
+
+  document.getElementById("save").addEventListener("click", function () {
+    var any = false;
+    ALL.forEach(function (id) {
+      var chk = document.querySelector('[data-id="' + id + '"]');
+      var keyEl = document.querySelector('[data-key="' + id + '"]');
+      var baseEl = document.querySelector('[data-base="' + id + '"]');
+      var modelsEl = document.querySelector('[data-models="' + id + '"]');
+      var key = keyEl ? keyEl.value.trim() : "";
+      var models = modelsEl && modelsEl.value.trim()
+        ? modelsEl.value.split(",").map(function (m) { return m.trim(); }).filter(Boolean)
+        : [];
+      var enabled = !!(chk && chk.checked) || (!!key && id !== "lmstudio" && id !== "custom");
+      if (enabled && (key || id === "lmstudio" || id === "custom")) any = true;
+      cfg.providers[id] = {
+        enabled: enabled,
+        key: key,
+        base: baseEl ? baseEl.value.trim() : "",
+        models: models
+      };
+    });
+    localStorage.setItem("thrones.cfg", JSON.stringify(cfg));
+    localStorage.setItem("thrones.setup_done", "1");
+    if (!any) {
+      alert("Add at least one key (or a local server address) so the app can answer.");
+      return;
+    }
+    location.replace("index.html");
+  });
+})();
+</script>
+</body>
+</html>
