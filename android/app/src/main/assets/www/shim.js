@@ -774,6 +774,25 @@
     });
   }
 
+  function providersPayload(pid) {
+    var p = PROVIDERS[pid];
+    var e = entry(pid);
+    var names = e.models && e.models.length ? e.models : p.models || [];
+    return {
+      id: pid,
+      label: p.label,
+      kind: p.kind,
+      auth: p.auth || "bearer",
+      keyPage: p.keyPage || "",
+      recommended: ["ollama", "gemini", "openrouter", "nvidia"].indexOf(pid) >= 0,
+      enabled: !!e.enabled,
+      key: e.key || "",
+      base: e.base || "",
+      needsBase: p.auth === "none" || pid === "custom" || pid === "ollama",
+      models: names.length
+    };
+  }
+
   /* ------------------------------------------------------------------ router */
 
   function route(path, method, init) {
@@ -793,6 +812,25 @@
     if (path === "/api/settings/reset") {
       write(K_SET, {});
       return jsonResponse(settings());
+    }
+
+    if (path === "/api/providers") {
+      if (method === "PATCH" || method === "POST") {
+        var pid = body.id;
+        if (!PROVIDERS[pid]) return errResponse("Unknown provider: " + pid, 400);
+        var conf = cfg();
+        var row = conf.providers[pid] || {};
+        if (typeof body.key === "string") row.key = body.key.trim();
+        if (typeof body.base === "string") row.base = body.base.trim();
+        if (typeof body.enabled === "boolean") row.enabled = body.enabled;
+        if (row.key && row.enabled === undefined) row.enabled = true;
+        conf.providers[pid] = row;
+        write(K_CFG, conf);
+        return jsonResponse({ ok: true, provider: providersPayload(pid) });
+      }
+      return jsonResponse({
+        providers: Object.keys(PROVIDERS).map(function (id) { return providersPayload(id); })
+      });
     }
 
     if (path === "/api/models") {
