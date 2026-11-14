@@ -43,8 +43,8 @@ def test_check_url_blocks_local_and_odd_targets(url):
 
 
 def test_normalize_url_dedupes_tracking_variants():
-    a = normalize_url("https://www.Example.com/page/")
-    b = normalize_url("https://example.com/page")
+    a = normalize_url("https://www.Example.com/page/?utm_source=x&id=3#top")
+    b = normalize_url("https://example.com/page?id=3")
     assert a == b
 
 
