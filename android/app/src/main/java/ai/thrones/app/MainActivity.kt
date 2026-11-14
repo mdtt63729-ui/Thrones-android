@@ -2,19 +2,27 @@ package ai.thrones.app
 
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
+import android.view.Gravity
 import android.view.View
 import android.view.WindowInsets
 import android.view.WindowInsetsController
 import android.view.WindowManager
 import android.webkit.JavascriptInterface
+import android.webkit.RenderProcessGoneDetail
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.ScrollView
+import android.widget.TextView
 import androidx.webkit.WebViewAssetLoader
 import org.json.JSONObject
+import java.io.File
+import java.io.PrintWriter
+import java.io.StringWriter
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.concurrent.ConcurrentHashMap
@@ -22,9 +30,9 @@ import java.util.concurrent.ConcurrentHashMap
 /**
  * Thrones mobile shell.
  *
- * The web UI is served from https://appassets.androidplatform.net/assets/www/ so it keeps a normal
- * https origin. Every network call to an AI provider runs here, natively, which avoids browser CORS
- * limits. The UI itself is untouched: the shim script answers the api calls and talks to this bridge.
+ * Everything that can fail is wrapped: if the shell cannot start, the app shows the reason on
+ * screen instead of closing. Network calls to AI providers run natively here, which avoids the
+ * browser CORS limits. The interface itself is untouched.
  */
 class MainActivity : Activity() {
 
@@ -36,14 +44,33 @@ class MainActivity : Activity() {
     private val chatUrl get() = base + "index.html"
     private val keysUrl get() = base + "setup.html"
 
-    @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        val previous = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, error ->
+            runCatching { saveCrash(error) }
+            previous?.uncaughtException(thread, error)
+        }
+
+        try {
+            start()
+            runCatching { File(filesDir, "crash.txt").delete() }
+        } catch (error: Throwable) {
+            runCatching { saveCrash(error) }
+            showFailure(error)
+        }
+    }
+
+    @SuppressLint("SetJavaScriptEnabled")
+    private fun start() {
         goFullScreen()
 
         assetLoader = WebViewAssetLoader.Builder()
             .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(this))
             .build()
+
+        runCatching { WebView.setWebContentsDebuggingEnabled(true) }
 
         webView = WebView(this)
         webView.setBackgroundColor(0xFF0B0B0C.toInt())
@@ -58,72 +85,106 @@ class MainActivity : Activity() {
             mediaPlaybackRequiresUserGesture = false
             loadWithOverviewMode = true
             useWideViewPort = true
-            userAgentString = userAgentString + " ThronesApp/1.1"
+            userAgentString = userAgentString + " ThronesApp/1.2"
         }
 
         webView.addJavascriptInterface(Bridge(), "ThronesNative")
+
         webView.webViewClient = object : WebViewClient() {
             override fun shouldInterceptRequest(
                 view: WebView,
                 request: WebResourceRequest
-            ): WebResourceResponse? = assetLoader.shouldInterceptRequest(request.url)
+            ): WebResourceResponse? = runCatching {
+                assetLoader.shouldInterceptRequest(request.url)
+            }.getOrNull()
 
             override fun onPageFinished(view: WebView, url: String) {
-                goFullScreen()
+                runCatching { goFullScreen() }
+            }
+
+            override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
+                runCatching { view.destroy() }
+                showFailure(RuntimeException("The web view stopped unexpectedly. Reopen the app."))
+                return true
             }
         }
 
         webView.loadUrl(chatUrl)
     }
 
-    /** Edge to edge, bars hidden, swipe from an edge brings them back briefly. */
-    private fun goFullScreen() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            window.attributes.layoutInDisplayCutoutMode =
-                WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+    /** Shows the real error instead of letting the app close silently. */
+    private fun showFailure(error: Throwable) {
+        val trace = StringWriter().also { error.printStackTrace(PrintWriter(it)) }.toString()
+        val text = TextView(this).apply {
+            setTextColor(Color.WHITE)
+            setBackgroundColor(0xFF0B0B0C.toInt())
+            textSize = 13f
+            setPadding(36, 96, 36, 96)
+            gravity = Gravity.START
+            text = "Thrones could not start.\n\n" +
+                (error.message ?: error.javaClass.name) + "\n\n" +
+                "Please send this text so it can be fixed:\n\n" + trace
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            window.setDecorFitsSystemWindows(false)
-            window.insetsController?.apply {
-                hide(WindowInsets.Type.systemBars())
-                systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        setContentView(ScrollView(this).apply { addView(text) })
+    }
+
+    private fun saveCrash(error: Throwable) {
+        val trace = StringWriter().also { error.printStackTrace(PrintWriter(it)) }.toString()
+        File(filesDir, "crash.txt").writeText(trace)
+    }
+
+    /** Edge to edge with the bars hidden; a swipe from an edge brings them back briefly. */
+    private fun goFullScreen() {
+        runCatching {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                window.attributes = window.attributes.apply {
+                    layoutInDisplayCutoutMode =
+                        WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+                }
             }
-        } else {
-            @Suppress("DEPRECATION")
-            window.decorView.systemUiVisibility = (
-                View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                    or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                    or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                    or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                    or View.SYSTEM_UI_FLAG_FULLSCREEN
-                    or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                )
+        }
+        runCatching {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                window.setDecorFitsSystemWindows(false)
+                window.insetsController?.apply {
+                    hide(WindowInsets.Type.systemBars())
+                    systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                }
+            } else {
+                @Suppress("DEPRECATION")
+                window.decorView.systemUiVisibility = (
+                    View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                        or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                        or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                        or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                        or View.SYSTEM_UI_FLAG_FULLSCREEN
+                        or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                    )
+            }
         }
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        if (hasFocus) goFullScreen()
+        if (hasFocus) runCatching { goFullScreen() }
     }
 
-    /** Back goes through history first; at the chat list it opens the key screen. */
+    /** Back walks history first; at the chat list it opens the key screen. */
     override fun onBackPressed() {
-        val url = webView.url ?: ""
-        if (url.contains("setup.html")) {
-            if (webView.canGoBack()) webView.goBack() else finish()
-            return
-        }
-        if (webView.canGoBack()) {
-            webView.goBack()
-        } else {
-            webView.loadUrl(keysUrl)
-        }
+        runCatching {
+            val url = webView.url ?: ""
+            if (url.contains("setup.html")) {
+                if (webView.canGoBack()) webView.goBack() else finish()
+                return
+            }
+            if (webView.canGoBack()) webView.goBack() else webView.loadUrl(keysUrl)
+        }.onFailure { finish() }
     }
 
     private fun emit(reqId: String, kind: String, payload: String) {
         val js = "window.__tn(" + JSONObject.quote(reqId) + "," + JSONObject.quote(kind) + "," +
             JSONObject.quote(payload) + ")"
-        webView.post { webView.evaluateJavascript(js, null) }
+        webView.post { runCatching { webView.evaluateJavascript(js, null) } }
     }
 
     inner class Bridge {
@@ -167,7 +228,7 @@ class MainActivity : Activity() {
                     emit(reqId, "error", e.message ?: "network error")
                 } finally {
                     cancelled.remove(reqId)
-                    conn?.disconnect()
+                    runCatching { conn?.disconnect() }
                 }
             }.start()
         }
