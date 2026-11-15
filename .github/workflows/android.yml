@@ -55,22 +55,27 @@ jobs:
         working-directory: android
         run: gradle assembleRelease --no-daemon --stacktrace
 
-      - name: Sign the APKs
+      - name: Sign the APKs with the repository signing key
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           set -e
           BT=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -1)
           mkdir -p out
-          keytool -genkeypair -v -keystore out/thrones-release.jks -alias thrones \
-            -storepass thrones123 -keypass thrones123 -keyalg RSA -keysize 2048 \
-            -validity 10000 -dname "CN=Thrones, OU=Mobile, O=Thrones, L=Kolkata, C=IN"
+          echo "$KEYSTORE_B64" | base64 -d > out/thrones-release.p12
           for f in android/app/build/outputs/apk/release/*.apk; do
-            base=$(basename "$f" .apk)
-            cp "$f" "out/${base}-unsigned.apk"
-            "$BT/zipalign" -f 4 "$f" "out/${base}-aligned.apk"
-            "$BT/apksigner" sign --ks out/thrones-release.jks --ks-pass pass:thrones123 \
-              --key-pass pass:thrones123 --out "out/${base}-signed.apk" "out/${base}-aligned.apk"
-            rm -f "out/${base}-aligned.apk"
+            abi=$(basename "$f" | sed -E 's/app-(.*)-release-unsigned\.apk/\1/')
+            "$BT/zipalign" -f 4 "$f" "out/aligned.apk"
+            "$BT/apksigner" sign --ks out/thrones-release.p12 --ks-type PKCS12 \
+              --ks-key-alias "$KEY_ALIAS" --ks-pass "pass:$KEYSTORE_PASSWORD" \
+              --key-pass "pass:$KEY_PASSWORD" --out "out/thrones-$abi.apk" "out/aligned.apk"
+            rm -f "out/aligned.apk"
+            echo "signed thrones-$abi.apk"
           done
+          "$BT/apksigner" verify --print-certs out/thrones-arm64-v8a.apk | head -4
           ls -lh out
 
       - name: Package the source code
@@ -90,10 +95,10 @@ jobs:
           tag_name: mobile-build-${{ github.run_number }}
           name: Thrones Mobile build ${{ github.run_number }}
           body: |
-            Signed and unsigned APKs, one per CPU architecture, plus the source code.
+            Signed APKs, one per CPU architecture, plus the source code.
 
-            Signed APKs are signed with the keystore `thrones-release.jks` (also attached).
-            Keystore password: `thrones123`, key alias `thrones`.
+            Every APK here is signed with the repository's own signing key, held in the
+            Actions secrets KEYSTORE_B64 / KEYSTORE_PASSWORD / KEY_ALIAS / KEY_PASSWORD.
 
             Install the `arm64-v8a` file on almost any phone from the last few years.
           files: out/*
