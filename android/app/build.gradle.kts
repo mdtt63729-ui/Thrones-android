@@ -11,8 +11,8 @@ android {
         applicationId = "ai.thrones.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 8
-        versionName = "1.7.0"
+        versionCode = 9
+        versionName = "1.8.0"
     }
 
     // One APK per CPU architecture - never a universal APK.

@@ -127,7 +127,7 @@ export function Thread({ onStarter }: { onStarter: (prompt: string, mode: Mode) 
   return (
     <>
       <div className="thread scroll" ref={scroller} onScroll={onScroll}>
-        <div className="thread-inner">
+        <div className="thread-inner" key={activeId ?? "new"}>
           {messages.map((m) => (
             <MessageView key={m.id} message={m} isLast={!live && m.id === lastAssistant?.id && m === messages[messages.length - 1]} />
           ))}

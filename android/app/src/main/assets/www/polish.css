@@ -420,3 +420,61 @@ main, aside, [class*="panel"], [class*="sheet"], [class*="modal"], [class*="over
 
 /* Bottom sheets and the settings page sit above the navigation bar. */
 .tn-sheet { padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px)); }
+
+/* ------------------------------------------------- every page, every surface */
+
+/* Settings page: backdrop fades, the page itself rises into place. */
+@keyframes tn-dialog-in {
+  from { opacity: 0; transform: translate3d(0, 18px, 0) scale(.985); }
+  to { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+}
+.scrim { animation: tn-fade-in 180ms var(--tn-soft) both; }
+.dialog { animation: tn-dialog-in 260ms var(--tn-spring) both; }
+@media (max-width: 900px) {
+  @keyframes tn-page-up {
+    from { opacity: 0; transform: translate3d(0, 26px, 0); }
+    to { opacity: 1; transform: translate3d(0, 0, 0); }
+  }
+  .dialog { animation: tn-page-up 280ms var(--tn-spring) both; }
+}
+
+/* Switching settings sections: the panel slides in and its rows follow one by one. */
+@keyframes tn-row-in {
+  from { opacity: 0; transform: translate3d(0, 8px, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+.set-content > * { animation: tn-row-in 240ms var(--tn-spring) both; }
+.set-content > *:nth-child(2) { animation-delay: 35ms; }
+.set-content > *:nth-child(3) { animation-delay: 70ms; }
+.set-content > *:nth-child(4) { animation-delay: 100ms; }
+
+/* Chat: the conversation itself glides in when you switch or start a new one. */
+@keyframes tn-chat-in {
+  from { opacity: 0; transform: translate3d(0, 16px, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+.thread-inner { animation: tn-chat-in 280ms var(--tn-spring) both; }
+
+/* Sidebar rows and lists cascade. */
+@keyframes tn-item-in {
+  from { opacity: 0; transform: translate3d(-8px, 0, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+.sidebar .conversations > *, .sidebar .projects > * {
+  animation: tn-item-in 240ms var(--tn-spring) both;
+}
+.sidebar .conversations > *:nth-child(2), .sidebar .projects > *:nth-child(2) { animation-delay: 25ms; }
+.sidebar .conversations > *:nth-child(3), .sidebar .projects > *:nth-child(3) { animation-delay: 50ms; }
+.sidebar .conversations > *:nth-child(4), .sidebar .projects > *:nth-child(4) { animation-delay: 75ms; }
+
+/* Small surfaces: jump button, empty states, popovers. */
+.jump { animation: tn-pop 200ms var(--tn-spring) both; }
+.sb-empty, .note { animation: tn-fade-in 200ms var(--tn-soft) both; }
+
+/* Mode switch in the composer gets a soft press. */
+.seg button { transition: transform 130ms var(--tn-spring), background-color 160ms var(--tn-soft), color 160ms var(--tn-soft); }
+.seg button:active { transform: scale(.96); }
+
+@media (prefers-reduced-motion: reduce) {
+  .dialog, .thread-inner, .set-content > *, .sidebar .conversations > * { animation: none !important; }
+}
