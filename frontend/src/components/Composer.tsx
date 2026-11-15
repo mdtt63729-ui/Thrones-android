@@ -6,9 +6,9 @@ import type { Mode } from "../types";
 import { Popover } from "./Popover";
 
 const MODES: { id: Mode; label: string; short: string; icon: typeof Zap; hint: string }[] = [
-  { id: "fast", label: "Fast", short: "Fast", icon: Zap, hint: "Direct answer from the local model. Works offline." },
+  { id: "fast", label: "Fast", short: "Fast", icon: Zap, hint: "A direct answer from the model you connected." },
   { id: "think", label: "Think", short: "Think", icon: Lightbulb,
-    hint: "Plans, reasons step by step, verifies calculations with real tools, then checks its own answer. Works offline." },
+    hint: "Plans, reasons step by step, then checks its own answer." },
   { id: "research", label: "Deep Research", short: "Research", icon: Globe,
     hint: "Searches the web, reads several sources and writes a cited report. Needs internet." },
 ];
@@ -182,7 +182,7 @@ export const Composer = forwardRef<ComposerHandle>(function Composer(_, ref) {
             )}>
             {(close) => (
               <div style={{ minWidth: 270 }}>
-                <div className="menu-label">Local models on this PC</div>
+                <div className="menu-label">Your models</div>
                 {installed.map((m) => (
                   <button key={m.id} className="menu-item" role="menuitemradio" aria-checked={m.id === resolvedId}
                     onClick={() => {
@@ -190,16 +190,16 @@ export const Composer = forwardRef<ComposerHandle>(function Composer(_, ref) {
                       if (m.id !== resolvedId) void selectModel(m.id);
                     }}>
                     <span>
-                      {m.name} <span style={{ color: "var(--text-3)" }}>{m.quantization}</span>
-                      <span className="sub">{m.compatibility.message}</span>
+                      {m.name}
+                      {m.compatibility.message ? <span className="sub">{m.compatibility.message}</span> : null}
                     </span>
                     {m.id === resolvedId && <Check size={15} className="check" />}
                   </button>
                 ))}
-                {noModel && <div className="sb-empty">Nothing installed yet.</div>}
+                {noModel && <div className="sb-empty">No provider connected yet.</div>}
                 <div className="menu-sep" />
                 <button className="menu-item" onClick={() => { close(); openSettings("providers"); }}>
-                  Manage and download models…
+                  Manage providers…
                 </button>
               </div>
             )}

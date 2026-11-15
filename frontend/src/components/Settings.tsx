@@ -134,7 +134,7 @@ function Providers() {
   const [key, setKey] = useState("");
   const [model, setModel] = useState("");
   const [sheet, setSheet] = useState<"none" | "providers" | "models">("none");
-  const [models, setModels] = useState<string[]>([]);
+  const [models, setModels] = useState<{ id: string; free: boolean }[]>([]);
   const [busy, setBusy] = useState("");
   const [note, setNote] = useState("");
   const [failed, setFailed] = useState("");
@@ -175,7 +175,7 @@ function Providers() {
       } else if (!d.models || !d.models.length) {
         setNote("This provider returned no models for this key.");
       } else {
-        setModels(d.models as string[]);
+        setModels(d.models as { id: string; free: boolean }[]);
         setSheet("models");
         setNote(`${d.models.length} models found.`);
       }
@@ -229,17 +229,17 @@ function Providers() {
         <h4>Connection</h4>
         {isCustom && (
           <Field name="Provider name">
-            <Text label="Provider name" value={name} placeholder="My provider" onCommit={setName} width={240} />
+            <Text key={`name-${activeId}`} label="Provider name" value={name} placeholder="My provider" onCommit={setName} width={240} />
           </Field>
         )}
         <Field name="Base URL">
-          <Text label="Base URL" value={base} placeholder="https://api.example.com/v1" onCommit={setBase} width={240} />
+          <Text key={`base-${activeId}`} label="Base URL" value={base} placeholder="https://api.example.com/v1" onCommit={setBase} width={240} />
         </Field>
         <Field name="API key">
-          <Text label="API key" type="password" value={key} placeholder="Paste your key" onCommit={setKey} width={240} />
+          <Text key={`key-${activeId}`} label="API key" type="password" value={key} placeholder="Paste your key" onCommit={setKey} width={240} />
         </Field>
         <Field name="Model" help="The model this provider will run, for example llama-3.3-70b.">
-          <Text label="Model" value={model} placeholder="model name" onCommit={setModel} width={240} />
+          <Text key={`model-${activeId}`} label="Model" value={model} placeholder="model name" onCommit={setModel} width={240} />
         </Field>
         <div className="tn-actions">
           <button className="tn-btn" onClick={() => void fetchModels()} disabled={busy === "models"}>
@@ -280,14 +280,15 @@ function Providers() {
         <Sheet title={`${models.length} models`} onClose={() => setSheet("none")}>
           {models.map((m) => (
             <button
-              key={m}
-              className={`tn-sheet-row${m === model ? " on" : ""}`}
+              key={m.id}
+              className={`tn-sheet-row${m.id === model ? " on" : ""}`}
               onClick={() => {
-                setModel(m);
+                setModel(m.id);
                 setSheet("none");
-                setNote(`Selected ${m}. Now press Verify & save.`);
+                setNote(`Selected ${m.id}. Now press Verify & save.`);
               }}>
-              <span className="tn-sheet-name">{m}</span>
+              <span className="tn-sheet-name">{m.id}</span>
+              {m.free && <span className="tn-chip">Free</span>}
             </button>
           ))}
         </Sheet>
