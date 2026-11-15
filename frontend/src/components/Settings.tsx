@@ -1,6 +1,6 @@
 import {
-  AlertTriangle, Brain, CheckCircle2, Cpu, Download, Globe, Info, Pause, Plus, Shield, SlidersHorizontal,
-  Sparkles, Trash2, Wrench, X,
+  AlertTriangle, Brain, CheckCircle2, ChevronDown, Cpu, Download, Globe, Info, Pause, Plus, Shield,
+  SlidersHorizontal, Sparkles, Trash2, Wrench, X,
 } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { api } from "../api";
@@ -98,106 +98,200 @@ function Text({ value, onCommit, placeholder, label, type = "text", width = 260 
 type Save = (patch: Partial<SettingsT>) => Promise<void>;
 
 /* --------------------------------------------------------------- providers */
-interface ProviderRow {
+interface ProviderInfo {
   id: string;
   label: string;
-  kind: string;
   auth: string;
   keyPage: string;
   recommended: boolean;
-  enabled: boolean;
-  key: string;
   base: string;
+  key: string;
+  model: string;
   needsBase: boolean;
-  models: number;
 }
 
-type ProviderSave = (id: string, patch: Partial<ProviderRow>) => void;
-
-function ProviderRowView({ row, save }: { row: ProviderRow; save: ProviderSave }) {
+function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
   return (
     <>
-      <Field
-        name={row.label}
-        help={row.keyPage ? `Key from ${row.keyPage}` : row.needsBase ? "Your own server on this network" : undefined}>
-        <Switch checked={row.enabled} label={`Enable ${row.label}`} onChange={(v) => save(row.id, { enabled: v })} />
-      </Field>
-      {row.auth !== "none" && (
-        <Field name="API key">
-          <Text
-            label={`${row.label} API key`}
-            type="password"
-            value={row.key}
-            placeholder={row.key ? "Saved" : "Paste your key"}
-            onCommit={(v) => save(row.id, { key: v })}
-            width={240}
-          />
-        </Field>
-      )}
-      {row.needsBase && (
-        <Field name="Server address" help="For example http://192.168.1.10:1234/v1">
-          <Text
-            label={`${row.label} server address`}
-            value={row.base}
-            placeholder="http://192.168.1.10:1234/v1"
-            onCommit={(v) => save(row.id, { base: v })}
-            width={240}
-          />
-        </Field>
-      )}
+      <div className="tn-sheet-backdrop" onClick={onClose} />
+      <div className="tn-sheet" role="dialog" aria-label={title}>
+        <div className="tn-sheet-grip" />
+        <div className="tn-sheet-head">
+          <span>{title}</span>
+          <button className="icon-btn sm" aria-label="Close" onClick={onClose}><X size={16} /></button>
+        </div>
+        <div className="tn-sheet-body">{children}</div>
+      </div>
     </>
   );
 }
 
 function Providers() {
-  const [rows, setRows] = useState<ProviderRow[] | null>(null);
+  const [list, setList] = useState<ProviderInfo[] | null>(null);
+  const [activeId, setActiveId] = useState("openrouter");
+  const [name, setName] = useState("OpenRouter");
+  const [base, setBase] = useState("");
+  const [key, setKey] = useState("");
+  const [model, setModel] = useState("");
+  const [sheet, setSheet] = useState<"none" | "providers" | "models">("none");
+  const [models, setModels] = useState<string[]>([]);
+  const [busy, setBusy] = useState("");
+  const [note, setNote] = useState("");
   const [failed, setFailed] = useState("");
+
+  const apply = (row: ProviderInfo) => {
+    setActiveId(row.id);
+    setName(row.label);
+    setBase(row.base || "");
+    setKey(row.key || "");
+    setModel(row.model || "");
+    setModels([]);
+    setNote("");
+  };
 
   useEffect(() => {
     fetch("/api/providers")
       .then((r) => r.json())
-      .then((d) => setRows(d.providers as ProviderRow[]))
+      .then((d: { providers: ProviderInfo[] }) => {
+        setList(d.providers);
+        const connected = d.providers.find((p) => p.key || p.base);
+        apply(connected ?? d.providers[0]);
+      })
       .catch(() => setFailed("Could not read the provider list."));
   }, []);
 
-  const save: ProviderSave = (id, patch) => {
-    setRows((cur) => (cur ? cur.map((r) => (r.id === id ? { ...r, ...patch } : r)) : cur));
-    void fetch("/api/providers", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, ...patch }),
-    });
+  const fetchModels = async () => {
+    setBusy("models");
+    setNote("");
+    try {
+      const r = await fetch("/api/providers/fetch-models", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: activeId, base, key }),
+      });
+      const d = await r.json();
+      if (!r.ok) {
+        setNote(d.detail || "Could not fetch models.");
+      } else if (!d.models || !d.models.length) {
+        setNote("This provider returned no models for this key.");
+      } else {
+        setModels(d.models as string[]);
+        setSheet("models");
+        setNote(`${d.models.length} models found.`);
+      }
+    } catch {
+      setNote("Could not reach the provider.");
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const verifySave = async () => {
+    setBusy("verify");
+    setNote("Checking the provider…");
+    try {
+      const r = await fetch("/api/providers/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: activeId, name, base, key, model }),
+      });
+      const d = await r.json();
+      setNote(d.ok ? `Verified and saved. ${d.message || ""}` : d.message || "Verification failed.");
+    } catch {
+      setNote("Could not reach the provider.");
+    } finally {
+      setBusy("");
+    }
   };
 
   if (failed) return <div className="note warn">{failed}</div>;
-  if (!rows) return <div className="note">Loading providers…</div>;
+  if (!list) return <div className="note">Loading providers…</div>;
 
-  const recommended = rows.filter((r) => r.recommended);
-  const rest = rows.filter((r) => !r.recommended);
-  const connected = rows.filter((r) => r.enabled && (r.key || r.auth === "none")).length;
+  const recommended = list.filter((p) => p.recommended);
+  const current = list.find((p) => p.id === activeId) ?? list[0];
+  const isCustom = current.id === "custom";
 
   return (
     <>
       <div className="set-group">
-        <h4>Connected services</h4>
-        <div className="note">
-          {connected === 0
-            ? "No service is connected yet. Turn one on below and paste its key — the key is stored only on this phone."
-            : `${connected} service${connected === 1 ? "" : "s"} connected. Answers come from whichever model you pick in the composer.`}
-        </div>
+        <h4>Service</h4>
+        <button className="tn-picker" onClick={() => setSheet("providers")}>
+          <span className="tn-picker-text">
+            <span className="tn-picker-name">{name || current.label}</span>
+            <span className="tn-picker-sub">{current.keyPage || "Your own endpoint"}</span>
+          </span>
+          <ChevronDown size={18} />
+        </button>
+        <div className="note">Tap to pick from every provider, or choose Custom to type your own.</div>
       </div>
+
+      <div className="set-group">
+        <h4>Connection</h4>
+        {isCustom && (
+          <Field name="Provider name">
+            <Text label="Provider name" value={name} placeholder="My provider" onCommit={setName} width={240} />
+          </Field>
+        )}
+        <Field name="Base URL">
+          <Text label="Base URL" value={base} placeholder="https://api.example.com/v1" onCommit={setBase} width={240} />
+        </Field>
+        <Field name="API key">
+          <Text label="API key" type="password" value={key} placeholder="Paste your key" onCommit={setKey} width={240} />
+        </Field>
+        <Field name="Model" help="The model this provider will run, for example llama-3.3-70b.">
+          <Text label="Model" value={model} placeholder="model name" onCommit={setModel} width={240} />
+        </Field>
+        <div className="tn-actions">
+          <button className="tn-btn" onClick={() => void fetchModels()} disabled={busy === "models"}>
+            {busy === "models" ? "Fetching…" : "Fetch models"}
+          </button>
+          <button className="tn-btn primary" onClick={() => void verifySave()} disabled={busy === "verify"}>
+            {busy === "verify" ? "Verifying…" : "Verify & save"}
+          </button>
+        </div>
+        {note && <div className="note">{note}</div>}
+      </div>
+
       <div className="set-group">
         <h4>Recommended</h4>
-        {recommended.map((r) => (
-          <ProviderRowView key={r.id} row={r} save={save} />
-        ))}
+        <div className="note">
+          {recommended.map((p) => p.label).join(" · ")}. All of them work; free tiers are noted by the provider.
+        </div>
       </div>
-      <div className="set-group">
-        <h4>All providers</h4>
-        {rest.map((r) => (
-          <ProviderRowView key={r.id} row={r} save={save} />
-        ))}
-      </div>
+
+      {sheet === "providers" && (
+        <Sheet title="Choose a provider" onClose={() => setSheet("none")}>
+          {list.map((p) => (
+            <button
+              key={p.id}
+              className={`tn-sheet-row${p.id === activeId ? " on" : ""}`}
+              onClick={() => {
+                apply(p);
+                setSheet("none");
+              }}>
+              <span className="tn-sheet-name">{p.label}</span>
+              {p.recommended && <span className="tn-chip">Recommended</span>}
+            </button>
+          ))}
+        </Sheet>
+      )}
+
+      {sheet === "models" && (
+        <Sheet title={`${models.length} models`} onClose={() => setSheet("none")}>
+          {models.map((m) => (
+            <button
+              key={m}
+              className={`tn-sheet-row${m === model ? " on" : ""}`}
+              onClick={() => {
+                setModel(m);
+                setSheet("none");
+                setNote(`Selected ${m}. Now press Verify & save.`);
+              }}>
+              <span className="tn-sheet-name">{m}</span>
+            </button>
+          ))}
+        </Sheet>
+      )}
     </>
   );
 }
@@ -843,7 +937,7 @@ export function SettingsDialog() {
   }, [!!section]);
 
   if (!section || !settings) return null;
-  const current = SECTIONS.find((x) => x.id === section)!;
+  const current = SECTIONS.find((x) => x.id === section) ?? SECTIONS[0];
   return (
     <div className="scrim" onMouseDown={(e) => e.target === e.currentTarget && open(null)}>
       <div className="dialog" role="dialog" aria-modal="true" aria-label="Settings" ref={dialog} tabIndex={-1}>

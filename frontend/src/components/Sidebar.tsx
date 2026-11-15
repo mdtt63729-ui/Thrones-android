@@ -311,7 +311,7 @@ export const Sidebar = forwardRef<HTMLInputElement>(function Sidebar(_, searchRe
         </div>
 
         <div className="sb-foot">
-          <button className="engine-row" onClick={() => openSettings("models")} title="Engine and hardware">
+          <button className="engine-row" onClick={() => openSettings("providers")} title="Engine and hardware">
             <span className={`dot ${dotClass}`} />
             <span className="lines">
               <span className="l1" style={{ display: "block" }}>{engineLine1}</span>
