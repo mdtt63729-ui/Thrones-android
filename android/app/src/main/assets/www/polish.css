@@ -378,3 +378,45 @@ main, aside, [class*="panel"], [class*="sheet"], [class*="modal"], [class*="over
 @media (prefers-reduced-motion: reduce) {
   .tn-sheet, .tn-sheet-backdrop { animation: none !important; }
 }
+
+/* ------------------------------------------------ tight, app-like spacing */
+
+.topbar { height: 48px; padding: 0 10px; }
+.thread-inner { padding: 6px 16px 18px; }
+.composer-wrap { padding: 0 14px 8px; }
+.thread { padding-top: 0; }
+
+/* Three breathing dots in front of "Thinking…". */
+.waiting::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: .8;
+  box-shadow: 10px 0 0 -1px currentColor, 20px 0 0 -1px currentColor;
+  animation: tn-dot-wave 1.15s var(--tn-soft) infinite;
+  margin-right: 20px;
+}
+@keyframes tn-dot-wave {
+  0%, 60%, 100% { transform: translateY(0); opacity: .35; }
+  30% { transform: translateY(-3px); opacity: 1; }
+}
+
+/* The sent bubble settles quickly so it never looks like it flew away. */
+@keyframes tn-send {
+  from { opacity: 0; transform: translate3d(0, 8px, 0) scale(.99); }
+  to { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+}
+.msg.user { animation: tn-send 190ms var(--tn-spring) both; }
+@keyframes tn-answer {
+  from { opacity: 0; transform: translate3d(0, 6px, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+.msg.assistant { animation: tn-answer 200ms var(--tn-spring) both; }
+
+/* Streamed words arrive without a flicker. */
+.msg.assistant .md p, .msg.assistant .markdown p { transition: opacity 120ms linear; }
+
+/* Bottom sheets and the settings page sit above the navigation bar. */
+.tn-sheet { padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px)); }
