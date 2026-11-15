@@ -242,10 +242,10 @@
         out.push({
           id: pid + ":" + m, name: m, family: p.label, publisher: p.label,
           base_repo: "", gguf_repo: "", file: "", size_bytes: 0,
-          license: "provider terms", parameters: "", quantization: "cloud", tier: "high",
+          license: "provider terms", parameters: "", quantization: "", tier: "high",
           native_context: 128000, notes: "Runs on " + p.label + " over the internet.",
           installed: true, loaded: false,
-          compatibility: { level: "ok", message: "Cloud model - works on this phone." },
+          compatibility: { level: "ok", message: "" },
           download: null
         });
       });
@@ -874,20 +874,31 @@
         if (r.status >= 400 || r.status === 0) {
           return errResponse("HTTP " + r.status + ": " + String(r.text || "").slice(0, 200), 400);
         }
-        var ids = [];
+        var out = [];
         try {
           var j = JSON.parse(r.text);
           var arr = j.data || j.models || [];
           arr.forEach(function (m) {
             var id = m.id || m.name || "";
             if (id.indexOf("models/") === 0) id = id.slice(7);
-            if (id) ids.push(id);
+            if (!id) return;
+            var free = false;
+            if (kind === "gemini") free = true;
+            if (m.pricing && m.pricing.prompt !== undefined) {
+              free = Number(m.pricing.prompt) === 0 && Number(m.pricing.completion) === 0;
+            } else if (/(^|[/:_-])free($|[/:_-])|:free$/i.test(id)) {
+              free = true;
+            }
+            out.push({ id: id, free: free });
           });
         } catch (e) {
           return errResponse("The provider did not return a model list.", 400);
         }
-        ids.sort();
-        return jsonResponse({ models: ids, count: ids.length });
+        out.sort(function (a, b) {
+          if (a.free !== b.free) return a.free ? -1 : 1;
+          return a.id < b.id ? -1 : 1;
+        });
+        return jsonResponse({ models: out, count: out.length });
       });
     }
 

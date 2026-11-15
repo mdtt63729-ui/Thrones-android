@@ -80,12 +80,24 @@ export function Thread({ onStarter }: { onStarter: (prompt: string, mode: Mode) 
 
   const toBottom = useCallback((smooth = false) => {
     const el = scroller.current;
-    if (el) el.scrollTo({ top: el.scrollHeight, behavior: smooth ? "smooth" : "auto" });
+    if (!el) return;
+    if (smooth && "scrollBehavior" in document.documentElement.style) {
+      el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    } else {
+      el.scrollTop = el.scrollHeight;
+    }
   }, []);
 
-  // Follow new text only while the reader is at the bottom; never yank them back while they read earlier content.
+  // Follow the newest text while the reader is at the bottom. The scroll runs after paint so the
+  // freshly sent bubble is already in place and the view does not jump upward.
   useLayoutEffect(() => {
-    if (pinned.current) toBottom();
+    if (!pinned.current) return;
+    const raf = requestAnimationFrame(() => toBottom());
+    const t = window.setTimeout(() => toBottom(), 90);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.clearTimeout(t);
+    };
   }, [messages, live, toBottom]);
 
   useEffect(() => {
