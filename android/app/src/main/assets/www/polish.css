@@ -3,8 +3,8 @@
 
 :root {
   --tn-ease: cubic-bezier(.2, .8, .2, 1);
-  --tn-fast: 160ms;
-  --tn-med: 220ms;
+  --tn-fast: 130ms;
+  --tn-med: 190ms;
 }
 
 html, body {
@@ -118,7 +118,7 @@ main, aside, [class*="panel"], [class*="sheet"], [class*="modal"], [class*="over
 /* ------------------------------------------------------------------ motion */
 
 :root {
-  --tn-spring: cubic-bezier(.22, 1, .36, 1);
+  --tn-spring: cubic-bezier(.16, 1, .3, 1);
   --tn-soft: cubic-bezier(.4, 0, .2, 1);
 }
 
@@ -250,4 +250,131 @@ main, aside, [class*="panel"], [class*="sheet"], [class*="modal"], [class*="over
     animation: none !important;
     transition: none !important;
   }
+}
+
+/* ------------------------------------------------------- provider pickers */
+
+.tn-picker {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 14px 16px;
+  border: 1px solid var(--border-strong, #2a2a2a);
+  border-radius: 14px;
+  background: var(--surface, #141414);
+  color: inherit;
+  text-align: left;
+  transition: transform 120ms var(--tn-spring), background-color 160ms var(--tn-soft);
+}
+.tn-picker:active { transform: scale(.985); }
+.tn-picker-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.tn-picker-name { font-size: 15px; font-weight: 600; }
+.tn-picker-sub { font-size: 12px; color: var(--text-3, #8d8981); }
+
+.tn-actions { display: flex; gap: 10px; margin-top: 14px; }
+.tn-btn {
+  flex: 1;
+  height: 44px;
+  border-radius: 13px;
+  border: 1px solid var(--border-strong, #2a2a2a);
+  background: var(--surface, #141414);
+  color: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  transition: transform 120ms var(--tn-spring), background-color 160ms var(--tn-soft), opacity 160ms var(--tn-soft);
+}
+.tn-btn:active { transform: scale(.97); }
+.tn-btn.primary { background: #c8a96a; color: #14130f; border-color: transparent; }
+.tn-btn:disabled { opacity: .55; }
+
+/* bottom sheet */
+@keyframes tn-sheet-up {
+  from { transform: translate3d(0, 100%, 0); }
+  to { transform: translate3d(0, 0, 0); }
+}
+@keyframes tn-backdrop-in { from { opacity: 0; } to { opacity: 1; } }
+
+.tn-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, .5);
+  z-index: 300;
+  animation: tn-backdrop-in 180ms var(--tn-soft) both;
+}
+.tn-sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 301;
+  max-height: 76vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface, #141414);
+  border-radius: 22px 22px 0 0;
+  box-shadow: 0 -18px 40px rgba(0, 0, 0, .45);
+  animation: tn-sheet-up 300ms var(--tn-spring) both;
+  will-change: transform;
+  padding-bottom: env(safe-area-inset-bottom, 10px);
+}
+.tn-sheet-grip {
+  width: 42px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--border-strong, #3a3a3a);
+  margin: 10px auto 4px;
+  flex: none;
+}
+.tn-sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 18px 10px;
+  font-size: 15px;
+  font-weight: 600;
+  flex: none;
+}
+.tn-sheet-body {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding-bottom: 18px;
+}
+.tn-sheet-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 14px 18px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: 15px;
+  text-align: left;
+  transition: background-color 140ms var(--tn-soft);
+}
+.tn-sheet-row:active { background: var(--hover, rgba(255, 255, 255, .07)); }
+.tn-sheet-row.on { background: var(--pressed, rgba(255, 255, 255, .05)); font-weight: 600; }
+.tn-sheet-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tn-chip {
+  flex: none;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: #06210f;
+  background: #4ade80;
+  border-radius: 999px;
+  padding: 3px 9px;
+}
+
+/* smoother, cheaper animations on the compositor */
+.sidebar, .tn-sheet, .scrim, .dialog, .msg, .thread-inner, .welcome {
+  backface-visibility: hidden;
+  -webkit-transform: translateZ(0);
+}
+@media (prefers-reduced-motion: reduce) {
+  .tn-sheet, .tn-sheet-backdrop { animation: none !important; }
 }
