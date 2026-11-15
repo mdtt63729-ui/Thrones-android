@@ -65,17 +65,19 @@ jobs:
           set -e
           BT=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -1)
           mkdir -p out
-          echo "$KEYSTORE_B64" | base64 -d > out/thrones-release.p12
+          KS="$RUNNER_TEMP/thrones-release.p12"
+          echo "$KEYSTORE_B64" | base64 -d > "$KS"
           for f in android/app/build/outputs/apk/release/*.apk; do
             abi=$(basename "$f" | sed -E 's/app-(.*)-release-unsigned\.apk/\1/')
             "$BT/zipalign" -f 4 "$f" "out/aligned.apk"
-            "$BT/apksigner" sign --ks out/thrones-release.p12 --ks-type PKCS12 \
+            "$BT/apksigner" sign --ks "$KS" --ks-type PKCS12 \
               --ks-key-alias "$KEY_ALIAS" --ks-pass "pass:$KEYSTORE_PASSWORD" \
               --key-pass "pass:$KEY_PASSWORD" --out "out/thrones-$abi.apk" "out/aligned.apk"
             rm -f "out/aligned.apk"
             echo "signed thrones-$abi.apk"
           done
           "$BT/apksigner" verify --print-certs out/thrones-arm64-v8a.apk | head -4
+          rm -f "$KS"
           ls -lh out
 
       - name: Package the source code
