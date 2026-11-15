@@ -198,7 +198,7 @@ export const Composer = forwardRef<ComposerHandle>(function Composer(_, ref) {
                 ))}
                 {noModel && <div className="sb-empty">Nothing installed yet.</div>}
                 <div className="menu-sep" />
-                <button className="menu-item" onClick={() => { close(); openSettings("models"); }}>
+                <button className="menu-item" onClick={() => { close(); openSettings("providers"); }}>
                   Manage and download models…
                 </button>
               </div>

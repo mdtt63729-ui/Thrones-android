@@ -51,7 +51,7 @@ function Welcome({ onStarter }: { onStarter: (prompt: string, mode: Mode) => voi
                 : `Thrones needs one local model. For this PC the ${status?.profiles[status.recommended_profile]?.label ?? "Balanced"} profile is recommended. Downloads are several gigabytes and happen once.`}
             </p>
             <div>
-              <button className="btn primary" onClick={() => openSettings("models")}>Open model setup</button>
+              <button className="btn primary" onClick={() => openSettings("providers")}>Open model setup</button>
             </div>
           </div>
         ) : (
