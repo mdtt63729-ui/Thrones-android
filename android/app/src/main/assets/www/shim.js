@@ -237,7 +237,7 @@
     activeProviders().forEach(function (pid) {
       var p = PROVIDERS[pid];
       var e = entry(pid);
-      var names = e.models && e.models.length ? e.models : p.models || [];
+      var names = e.model ? [e.model] : (e.models && e.models.length ? e.models : p.models || []);
       names.forEach(function (m) {
         out.push({
           id: pid + ":" + m, name: m, family: p.label, publisher: p.label,
@@ -318,6 +318,47 @@
         delete subs[reqId];
       }
     };
+  }
+
+  function nativeGet(url, headers, handlers) {
+    var reqId = "g" + ++seq;
+    handlers.lines = [];
+    handlers.status = 0;
+    subs[reqId] = handlers;
+    if (!window.ThronesNative || !window.ThronesNative.get) {
+      delete subs[reqId];
+      setTimeout(function () { handlers.onError("Network bridge unavailable."); }, 0);
+      return { cancel: function () {} };
+    }
+    try {
+      window.ThronesNative.get(reqId, url, JSON.stringify(headers || {}));
+    } catch (e) {
+      delete subs[reqId];
+      setTimeout(function () { handlers.onError(String((e && e.message) || e)); }, 0);
+    }
+    return { cancel: function () { try { window.ThronesNative.cancel(reqId); } catch (e) {} delete subs[reqId]; } };
+  }
+
+  /** GET that resolves with {status, text} instead of streaming. */
+  function httpGet(url, headers) {
+    return new Promise(function (resolve) {
+      nativeGet(url, headers, {
+        onLine: function () {},
+        onDone: function (text, status) { resolve({ status: status, text: text }); },
+        onError: function (msg) { resolve({ status: 0, text: msg }); }
+      });
+    });
+  }
+
+  /** POST that resolves with {status, text} instead of streaming. */
+  function httpPost(url, headers, body) {
+    return new Promise(function (resolve) {
+      nativePost(url, headers, body, {
+        onLine: function () {},
+        onDone: function (text, status) { resolve({ status: status, text: text }); },
+        onError: function (msg) { resolve({ status: 0, text: msg }); }
+      });
+    });
   }
 
   /* ------------------------------------------------------------------ requests */
@@ -788,6 +829,8 @@
       enabled: !!e.enabled,
       key: e.key || "",
       base: e.base || "",
+      name: e.name || "",
+      model: e.model || "",
       needsBase: p.auth === "none" || pid === "custom" || pid === "ollama",
       models: names.length
     };
@@ -814,6 +857,84 @@
       return jsonResponse(settings());
     }
 
+    if (path === "/api/providers/fetch-models" && (method === "POST" || method === "PATCH")) {
+      var fpid = body.id || "custom";
+      var fbase = (body.base || entry(fpid).base || PROVIDERS[fpid].base || "").replace(/\/+$/, "");
+      var fkey = body.key || entry(fpid).key || "";
+      var kind = PROVIDERS[fpid] ? PROVIDERS[fpid].kind : "openai";
+      if (!fbase) return errResponse("Add the base URL first.", 400);
+      var headers = {};
+      if (fkey) {
+        if (kind === "anthropic") { headers["x-api-key"] = fkey; headers["anthropic-version"] = "2023-06-01"; }
+        else if (kind === "gemini") headers["x-goog-api-key"] = fkey;
+        else headers["Authorization"] = "Bearer " + fkey;
+      }
+      var url = kind === "gemini" ? fbase + "/models" : fbase + "/models";
+      return httpGet(url, headers).then(function (r) {
+        if (r.status >= 400 || r.status === 0) {
+          return errResponse("HTTP " + r.status + ": " + String(r.text || "").slice(0, 200), 400);
+        }
+        var ids = [];
+        try {
+          var j = JSON.parse(r.text);
+          var arr = j.data || j.models || [];
+          arr.forEach(function (m) {
+            var id = m.id || m.name || "";
+            if (id.indexOf("models/") === 0) id = id.slice(7);
+            if (id) ids.push(id);
+          });
+        } catch (e) {
+          return errResponse("The provider did not return a model list.", 400);
+        }
+        ids.sort();
+        return jsonResponse({ models: ids, count: ids.length });
+      });
+    }
+
+    if (path === "/api/providers/verify" && (method === "POST" || method === "PATCH")) {
+      var vpid = body.id || "custom";
+      var vbase = (body.base || entry(vpid).base || PROVIDERS[vpid].base || "").replace(/\/+$/, "");
+      var vkey = body.key || entry(vpid).key || "";
+      var vmodel = body.model || entry(vpid).model || "";
+      var vname = body.name || "";
+      if (!vbase) return errResponse("Add the base URL first.", 400);
+      if (!vmodel) return errResponse("Add the model name first.", 400);
+      var vkind = PROVIDERS[vpid] ? PROVIDERS[vpid].kind : "openai";
+      var vheaders = { "Content-Type": "application/json" };
+      if (vkey) {
+        if (vkind === "anthropic") { vheaders["x-api-key"] = vkey; vheaders["anthropic-version"] = "2023-06-01"; }
+        else if (vkind === "gemini") vheaders["x-goog-api-key"] = vkey;
+        else vheaders["Authorization"] = "Bearer " + vkey;
+      }
+      var probe;
+      if (vkind === "gemini") {
+        probe = httpPost(vbase + "/models/" + encodeURIComponent(vmodel) + ":generateContent", vheaders,
+          JSON.stringify({ contents: [{ role: "user", parts: [{ text: "ping" }] }], generationConfig: { maxOutputTokens: 8 } }));
+      } else if (vkind === "anthropic") {
+        probe = httpPost(vbase + "/messages", vheaders,
+          JSON.stringify({ model: vmodel, max_tokens: 8, messages: [{ role: "user", content: "ping" }] }));
+      } else {
+        probe = httpPost(vbase + "/chat/completions", vheaders,
+          JSON.stringify({ model: vmodel, max_tokens: 8, messages: [{ role: "user", content: "ping" }] }));
+      }
+      return probe.then(function (r) {
+        if (r.status >= 400 || r.status === 0) {
+          return jsonResponse({ ok: false, message: "HTTP " + r.status + ": " + String(r.text || "").slice(0, 240) });
+        }
+        var conf = cfg();
+        var row = conf.providers[vpid] || {};
+        row.enabled = true;
+        row.key = vkey;
+        row.base = body.base || row.base || "";
+        row.model = vmodel;
+        if (vname) row.name = vname;
+        conf.providers[vpid] = row;
+        write(K_CFG, conf);
+        saveSettings({ model_id: vpid + ":" + vmodel });
+        return jsonResponse({ ok: true, message: vmodel + " is answering." });
+      });
+    }
+
     if (path === "/api/providers") {
       if (method === "PATCH" || method === "POST") {
         var pid = body.id;
@@ -822,6 +943,8 @@
         var row = conf.providers[pid] || {};
         if (typeof body.key === "string") row.key = body.key.trim();
         if (typeof body.base === "string") row.base = body.base.trim();
+        if (typeof body.name === "string") row.name = body.name.trim();
+        if (typeof body.model === "string") row.model = body.model.trim();
         if (typeof body.enabled === "boolean") row.enabled = body.enabled;
         if (row.key && row.enabled === undefined) row.enabled = true;
         conf.providers[pid] = row;
